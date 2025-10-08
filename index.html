@@ -109,6 +109,30 @@
             font-size: 0.9em; 
             color: #856404;
         }
+        
+        /* 資料備份區塊樣式 (新增) */
+        #backup-config {
+            background-color: #e6f7ff; 
+            border-left: 5px solid #007bff; 
+            margin-top: 30px; 
+            display: block; 
+            flex-direction: column; 
+            align-items: flex-start;
+        }
+        #backup-config h3 { color: #007bff; }
+        .backup-controls { 
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            margin-bottom: 10px; 
+            flex-wrap: wrap;
+        }
+        .btn-export { background-color: #007bff; }
+        .btn-export:hover { background-color: #0056b3; }
+        .btn-import { background-color: #28a745; }
+        .btn-import:hover { background-color: #1e7e34; }
+        .file-input-wrapper { display: flex; align-items: center; }
+        .file-input-wrapper input[type="file"] { width: 250px; padding: 5px; border: 1px solid #ccc; border-radius: 4px; }
 
 
         .config-controls { display: flex; gap: 10px; align-items: center; margin-top: 5px; }
@@ -120,7 +144,7 @@
         .btn-remove-block { background-color: #dc3545; padding: 3px 6px; font-size: 0.8em; }
 
 
-        /* 今日預約區塊 */
+        /* 今日預約篩選區塊 */
         #today-booking-section { 
             margin-bottom: 20px; 
             padding: 15px; 
@@ -233,6 +257,19 @@
                     <p style="color: #999;">目前沒有封鎖時段。</p>
                 </div>
             </div>
+            
+            <div id="backup-config" class="config-block">
+                <h3>資料備份與還原 (CSV 格式)</h3>
+                <div class="backup-controls">
+                    <button onclick="exportBookingsToCSV()" class="action-btn btn-export">匯出所有預約 (CSV)</button>
+                    
+                    <div class="file-input-wrapper">
+                        <input type="file" id="csv-file-input" accept=".csv" title="選擇 CSV 檔案" onchange="previewCSVFile(this)">
+                        <button onclick="handleCSVImport()" class="action-btn btn-import">匯入並覆蓋資料</button>
+                    </div>
+                </div>
+                <p id="csv-preview-message" style="font-size: 0.9em; color: #888; margin-top: 5px;">請選擇 CSV 檔案後，點擊「匯入」按鈕。</p>
+            </div>
 
 
             <div id="today-booking-section">
@@ -309,7 +346,7 @@
         };
 
         let bookings = [];
-        let blockedSlots = []; // 新增：用於儲存封鎖時段
+        let blockedSlots = []; 
         let sortColumn = 0;
         let sortDirection = 1; 
         let currentFilter = 'all'; 
@@ -322,8 +359,8 @@
             const day = now.getDate().toString().padStart(2, '0');
             return `${year}-${month}-${day}`;
         }
-
-        // --- 登入/登出功能 (保持不變) ---
+        
+        // --- 登入/登出功能 ---
 
         function handleLogin() {
             const enteredUsername = document.getElementById('username').value.toLowerCase(); 
@@ -359,15 +396,14 @@
 
             if (isLoggedIn) {
                 document.getElementById('current-date-display').textContent = getTodayDateString();
-                // 初始化日期欄位
                 document.getElementById('block-date').min = getTodayDateString();
                 document.getElementById('block-date').value = getTodayDateString();
                 document.getElementById('block-time').value = '10:00';
                 
                 loadBookings();
-                loadBlockedSlots(); // 新增：載入封鎖時段
+                loadBlockedSlots(); 
                 renderSystemStatus();
-                renderBlockedSlots(); // 新增：渲染封鎖時段列表
+                renderBlockedSlots(); 
                 renderBookings();
             } else {
                 document.getElementById('username').value = '';
@@ -376,7 +412,7 @@
             }
         }
 
-        // --- 資料載入與儲存 (新增封鎖時段的儲存) ---
+        // --- 資料載入與儲存 ---
 
         function loadBookings() {
             const storedBookings = localStorage.getItem('localBookingsData');
@@ -409,7 +445,7 @@
 
 
         // --- 系統狀態控制 (保持不變) ---
-
+        
         function saveReopenTime() {
             let config = getSystemConfig();
             config.reopenValue = parseInt(document.getElementById('reopen-value').value);
@@ -469,7 +505,7 @@
             }
         }
         
-        // --- 特定時段封鎖功能 (新增) ---
+        // --- 特定時段封鎖功能 (保持不變) ---
 
         function addBlockedSlot() {
             const date = document.getElementById('block-date').value;
@@ -480,14 +516,12 @@
                 return;
             }
 
-            // 檢查是否已存在
             const isDuplicate = blockedSlots.some(b => b.date === date && b.time === time);
             if (isDuplicate) {
                 alert(`此時段 (${date} ${time}) 已在封鎖列表中。`);
                 return;
             }
 
-            // 新增封鎖時段
             const newBlock = { date: date, time: time, id: Date.now() };
             blockedSlots.push(newBlock);
             saveBlockedSlots();
@@ -513,7 +547,6 @@
                 return;
             }
 
-            // 按日期和時間排序顯示
             const sortedBlocks = blockedSlots.sort((a, b) => {
                 const dateTimeA = new Date(`${a.date} ${a.time}`).getTime();
                 const dateTimeB = new Date(`${b.date} ${b.time}`).getTime();
@@ -530,6 +563,158 @@
                 `;
                 listDiv.appendChild(item);
             });
+        }
+        
+        // --- 資料備份與還原 (CSV 實作) ---
+        
+        const CSV_HEADERS = ["id", "date", "time", "pax", "name", "phone", "notes", "status", "timestamp"];
+        
+        /**
+         * 將所有預約資料匯出為 CSV 檔案
+         */
+        function exportBookingsToCSV() {
+            if (bookings.length === 0) {
+                alert("目前沒有任何預約資料可供匯出！");
+                return;
+            }
+            
+            // 1. 處理標題行
+            const headerRow = CSV_HEADERS.join(',');
+            
+            // 2. 處理資料行
+            const dataRows = bookings.map(booking => {
+                return CSV_HEADERS.map(header => {
+                    let value = booking[header] === undefined ? '' : booking[header];
+                    // 處理 CSV 內容中的逗號和換行，用雙引號包住
+                    value = String(value).replace(/"/g, '""'); 
+                    return `"${value}"`;
+                }).join(',');
+            }).join('\n');
+
+            const csvContent = headerRow + '\n' + dataRows;
+            
+            // 3. 建立可下載的 Blob 檔案
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            
+            // 設定下載檔案名稱
+            a.setAttribute('href', url);
+            a.setAttribute('download', `bookings_backup_${getTodayDateString()}.csv`);
+            
+            // 觸發下載
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            alert(`已成功匯出 ${bookings.length} 筆預約資料！檔案名稱: bookings_backup_${getTodayDateString()}.csv`);
+        }
+        
+        /**
+         * 預覽選中的檔案名稱
+         */
+        function previewCSVFile(input) {
+            const messageDiv = document.getElementById('csv-preview-message');
+            if (input.files.length > 0) {
+                messageDiv.textContent = `已選取檔案: ${input.files[0].name}，點擊「匯入」覆蓋資料。`;
+                messageDiv.style.color = 'green';
+            } else {
+                messageDiv.textContent = '請選擇 CSV 檔案後，點擊「匯入」按鈕。';
+                messageDiv.style.color = '#888';
+            }
+        }
+
+        /**
+         * 處理 CSV 檔案匯入
+         */
+        function handleCSVImport() {
+            const input = document.getElementById('csv-file-input');
+            if (input.files.length === 0) {
+                alert("請先選擇要匯入的 CSV 檔案！");
+                return;
+            }
+
+            if (!confirm("警告：匯入 CSV 將會覆蓋您瀏覽器中現有的所有預約資料。您確定要繼續嗎？")) {
+                return;
+            }
+
+            const file = input.files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                try {
+                    const csvText = event.target.result;
+                    const newBookings = parseCSV(csvText);
+
+                    if (newBookings.length === 0) {
+                        alert('匯入失敗：CSV 檔案中未找到有效的預約資料。');
+                        return;
+                    }
+
+                    // 替換現有資料並保存
+                    bookings = newBookings;
+                    saveBookings();
+                    
+                    alert(`成功匯入 ${newBookings.length} 筆預約資料！資料已更新。`);
+                    
+                    // 重新渲染介面
+                    renderBookings(); 
+                    
+                } catch (e) {
+                    console.error("CSV 匯入錯誤:", e);
+                    alert(`匯入過程中發生錯誤：${e.message}。請檢查 CSV 格式是否正確。`);
+                }
+            };
+
+            reader.readAsText(file, 'UTF-8');
+            input.value = ''; // 清空檔案選擇，以便下次選擇
+            previewCSVFile(input); // 更新預覽訊息
+        }
+
+        /**
+         * 解析 CSV 文本並轉換為預約物件陣列
+         */
+        function parseCSV(csv) {
+            // 簡單解析：使用換行符 (\n) 分割行
+            const lines = csv.split('\n').filter(line => line.trim() !== ''); 
+            if (lines.length < 2) return []; // 至少需要標題和一行資料
+
+            // 1. 解析標題行 (移除引號並轉小寫)
+            const headerLine = lines[0].replace(/"/g, '').toLowerCase();
+            const headers = headerLine.split(',').map(h => h.trim());
+
+            // 2. 驗證標題
+            const requiredHeaders = ["id", "date", "time", "pax", "name"]; // 檢查必要欄位
+            if (!requiredHeaders.every(h => headers.includes(h))) {
+                throw new Error("CSV 標題缺少必要欄位 (id, date, time, pax, name) 或格式不正確。");
+            }
+
+            const results = [];
+            // 3. 處理資料行 (從第二行開始)
+            for (let i = 1; i < lines.length; i++) {
+                // 使用正則表達式來處理雙引號內的逗號 (簡易版，不處理複雜的 CSV 逸出)
+                const values = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
+                if (!values) continue; 
+
+                const booking = {};
+                for (let j = 0; j < headers.length && j < values.length; j++) {
+                    let value = values[j].replace(/"/g, '').trim();
+                    const header = headers[j];
+
+                    // 處理資料類型轉換
+                    if (header === 'id' || header === 'pax') {
+                        booking[header] = parseInt(value) || 0;
+                    } else {
+                        booking[header] = value;
+                    }
+                }
+
+                // 確保預約物件有必要的欄位
+                if (booking.id && booking.date && booking.time) {
+                    results.push(booking);
+                }
+            }
+            return results;
         }
 
 
@@ -562,19 +747,19 @@
                 const row = tbody.insertRow();
                 
                 let statusClass = '';
-                if (booking.status.includes('等待')) statusClass = 'status-waiting';
-                else if (booking.status.includes('確認')) statusClass = 'status-confirmed';
-                else if (booking.status.includes('取消')) statusClass = 'status-cancelled';
-                else if (booking.status.includes('完成')) statusClass = 'status-completed';
+                if (booking.status && booking.status.includes('等待')) statusClass = 'status-waiting';
+                else if (booking.status && booking.status.includes('確認')) statusClass = 'status-confirmed';
+                else if (booking.status && booking.status.includes('取消')) statusClass = 'status-cancelled';
+                else if (booking.status && booking.status.includes('完成')) statusClass = 'status-completed';
 
-                row.insertCell().textContent = `${booking.date} ${booking.time}`;
-                row.insertCell().textContent = booking.name;
-                row.insertCell().textContent = `${booking.pax} 人`;
-                row.insertCell().textContent = booking.phone;
+                row.insertCell().textContent = `${booking.date || '-'} ${booking.time || '-'}`;
+                row.insertCell().textContent = booking.name || '-';
+                row.insertCell().textContent = `${booking.pax || 0} 人`;
+                row.insertCell().textContent = booking.phone || '-';
                 row.insertCell().textContent = booking.notes || '-';
-                row.insertCell().textContent = booking.id;
+                row.insertCell().textContent = booking.id || '-';
                 const statusCell = row.insertCell();
-                statusCell.textContent = booking.status;
+                statusCell.textContent = booking.status || '-';
                 statusCell.className = statusClass;
 
                 const actionCell = row.insertCell();
@@ -583,7 +768,7 @@
                     <button class="action-btn btn-delete" onclick="deleteBooking(${booking.id})">刪除</button>
                 `;
 
-                if (!booking.status.includes('取消') && !booking.status.includes('完成')) {
+                if (!booking.status || (!booking.status.includes('取消') && !booking.status.includes('完成'))) {
                     actionButtons += `
                         <button class="action-btn btn-confirm" onclick="updateBookingStatus(${booking.id}, '已確認')">確認</button>
                         <button class="action-btn btn-complete" onclick="updateBookingStatus(${booking.id}, '已完成')">完成</button>
@@ -604,7 +789,6 @@
             }
         }
         
-        // --- 刪除功能 (保持不變) ---
         function deleteBooking(id) {
             if (confirm(`確定要刪除預約 ID ${id} 的資料嗎？此操作無法復原。`)) {
                 const bookingIndex = bookings.findIndex(b => b.id === id);
