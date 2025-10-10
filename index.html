@@ -180,7 +180,7 @@
         .btn-edit { background-color: #007bff; }
         .btn-delete { background-color: #dc3545; }
 
-        /* Modal 編輯視窗樣式 (保持不變) */
+        /* Modal 編輯視窗樣式 */
         .modal {
             display: none; position: fixed; z-index: 100; left: 0; top: 0;
             width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); 
@@ -340,6 +340,7 @@
     </div>
 
     <script>
+        // *** 帳號密碼設定 ***
         const USER_ACCOUNTS = {
             "staff": "062057074",
             "lun": "lunlun1204"
@@ -444,7 +445,7 @@
         }
 
 
-        // --- 系統狀態控制 (保持不變) ---
+        // --- 系統狀態控制 ---
         
         function saveReopenTime() {
             let config = getSystemConfig();
@@ -505,7 +506,7 @@
             }
         }
         
-        // --- 特定時段封鎖功能 (保持不變) ---
+        // --- 特定時段封鎖功能 ---
 
         function addBlockedSlot() {
             const date = document.getElementById('block-date').value;
@@ -675,24 +676,20 @@
          * 解析 CSV 文本並轉換為預約物件陣列
          */
         function parseCSV(csv) {
-            // 簡單解析：使用換行符 (\n) 分割行
             const lines = csv.split('\n').filter(line => line.trim() !== ''); 
-            if (lines.length < 2) return []; // 至少需要標題和一行資料
+            if (lines.length < 2) return []; 
 
-            // 1. 解析標題行 (移除引號並轉小寫)
             const headerLine = lines[0].replace(/"/g, '').toLowerCase();
             const headers = headerLine.split(',').map(h => h.trim());
 
-            // 2. 驗證標題
-            const requiredHeaders = ["id", "date", "time", "pax", "name"]; // 檢查必要欄位
+            const requiredHeaders = ["id", "date", "time", "pax", "name"];
             if (!requiredHeaders.every(h => headers.includes(h))) {
                 throw new Error("CSV 標題缺少必要欄位 (id, date, time, pax, name) 或格式不正確。");
             }
 
             const results = [];
-            // 3. 處理資料行 (從第二行開始)
             for (let i = 1; i < lines.length; i++) {
-                // 使用正則表達式來處理雙引號內的逗號 (簡易版，不處理複雜的 CSV 逸出)
+                // 使用正則表達式來處理雙引號內的逗號 (簡易版)
                 const values = lines[i].match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g);
                 if (!values) continue; 
 
@@ -701,7 +698,6 @@
                     let value = values[j].replace(/"/g, '').trim();
                     const header = headers[j];
 
-                    // 處理資料類型轉換
                     if (header === 'id' || header === 'pax') {
                         booking[header] = parseInt(value) || 0;
                     } else {
@@ -709,7 +705,6 @@
                     }
                 }
 
-                // 確保預約物件有必要的欄位
                 if (booking.id && booking.date && booking.time) {
                     results.push(booking);
                 }
@@ -718,7 +713,7 @@
         }
 
 
-        // --- 預約列表篩選 (保持不變) ---
+        // --- 預約列表篩選 ---
         function filterBookings(filterType) {
             currentFilter = filterType;
             renderBookings();
@@ -727,7 +722,7 @@
             document.getElementById('filter-today').style.fontWeight = (filterType === 'today') ? 'bold' : 'normal';
         }
 
-        // --- 預約列表渲染與操作 (保持不變) ---
+        // --- 預約列表渲染與操作 ---
 
         function renderBookings() {
             const tbody = document.getElementById('booking-list').getElementsByTagName('tbody')[0];
@@ -801,7 +796,7 @@
             }
         }
 
-        // --- 編輯功能 (Modal) (保持不變) ---
+        // --- 編輯功能 (Modal) ---
         function openEditModal(id) {
             const booking = bookings.find(b => b.id === id);
             if (!booking) return;
@@ -844,7 +839,7 @@
             }
         }
 
-        // --- 排序功能 (保持不變) ---
+        // --- 排序功能 ---
         
         function sortData(data, columnIndex, direction) {
             const columns = ['dateTime', 'name', 'pax', 'phone', 'notes', 'id', 'status'];
